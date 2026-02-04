@@ -1,0 +1,8 @@
+## Restore to raw image file
+#
+7z x -so winos.img.7z | partclone.restore --source - --output winos.raw --restore_raw_file --buffer_size 52428800 -N
+#
+##
+#
+mount -o loop,ro -t ntfs winos.raw /mnt/B
+#
