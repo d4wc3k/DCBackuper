@@ -1,23 +1,24 @@
 #!/bin/bash
 #
 ##
-##############################################################################################################################################################################
+######################################################################################################################################################
 #
-## Partitions for backup
+## Definition of partitions for backup operation
+## PARTLABEL
 #
-# PARTLABEL 
 declare -A PARTITIONS=(["EFI"]="vfat" ["WINMSR"]="raw" ["WINOS"]="ntfs" ["WINREC"]="ntfs" ["WINDATA"]="ntfs" )
 # declare -A PARTITIONS=(["EFI"]="vfat" ["WINMSR"]="raw" ["WINOS"]="ntfs" ["WINREC"]="ntfs")
 #
-# PARTLABEL + LABEL
+## PARTLABEL + LABEL
 # declare -A PARTITIONS=(["EFI"]="vfat" ["WINMSR"]="raw" ["WinOS"]="ntfs" ["WinRec"]="ntfs" ["WinData"]="ntfs" )
 #
-# PARTLABEL + LABEL + lvm names
+## PARTLABEL + LABEL + lvm names
 # declare -A PARTITIONS=(["EFI"]="vfat" ["BootFs"]="ext2" ["vg-root"]="ext4" ["vg-home"]="ext4" )
 #
-##############################################################################################################################################################################
+######################################################################################################################################################
 #
-### Devices files definition
+## Devices files paths
+#
 ## MAIN
 # MAIN_DISK="/dev/sda"
 # MAIN_DISK="/dev/nvme0n1"
@@ -28,13 +29,19 @@ MAIN_DISK="/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_1TB_S4EWNF0M910268J"
 # SECOND_DISK="/dev/nvme0n2p1"
 SECOND_DISK="/dev/disk/by-id/nvme-Samsung_SSD_980_1TB_S649NJ0R214022Y"
 #
-##############################################################################################################################################################################
+######################################################################################################################################################
+#
+## BACKUP folder name
+# BACKUP_DIR="$(date +%Y_%m_%d_%H_%M)_WIN_CLEAN/BASIC"
+BACKUP_DIR="$(date +%Y_%m_%d_%H_%M)_WIN_SNAPSHOT"
+#
+######################################################################################################################################################
 #
 ## Script usage function
 #
 function PrintUsage()
-{	
-	echo "#####################################################################"
+{
+	echo "########################################################################################################################"
 	echo "Pleae use: ./DCBackuper.sh 'operation'."
 	echo "Posible value of operation are:"
 	echo "a) backup - creating backup"
@@ -42,8 +49,9 @@ function PrintUsage()
 	echo "c) part-table-restore - restoring partition table configuration"
 	echo "d) check - checking backup images files"
 	echo "For example: ./DCBackuper.sh restore"
-	echo "#####################################################################"
+	echo "########################################################################################################################"
 }
+######################################################################################################################################################
 #
 ## Function for making backup.
 #
@@ -51,14 +59,12 @@ function MakeBackup()
 {
 	## Creating backup directory
 	#
-	# BACKUP_DIR="$(date +%Y%m%d%H%M%S)_WIN_CLEAN_BASIC"
-	BACKUP_DIR="$(date +%Y%m%d%H%M%S)_WIN_SNAPSHOT"
 	mkdir "${BACKUP_DIR}"
 	touch "./${BACKUP_DIR}/files.txt"
 	#
 	for PART in "${!PARTITIONS[@]}"; 
 	do
-		echo "################################################################################################################"
+		echo "########################################################################################################################"
 		LABEL="${PART}"
 		FILE_SYSTEM="${PARTITIONS[$LABEL]}"
 		echo "Processing partition with ${LABEL} label and ${FILE_SYSTEM} filesystem."
@@ -85,45 +91,31 @@ function MakeBackup()
 				fi
 			fi
 		fi
-		## 7zip compression
-		#
 		FILE_NAME="$(echo ${LABEL} | tr '[:upper:]' '[:lower:]').img.7z"
-		#
 		if [ -f "./${BACKUP_DIR}/$FILE_NAME" ];
 		then
 			echo "File ${FILE_NAME} exist, skipping creatiion of backup."
 		else
 			if [ "${FILE_SYSTEM}" = "raw" ];
 			then
-				## 7zip compression
-				#
 				echo "Creation raw image for partition with ${LABEL} label with 7zip compression tool"
-				partclone.dd -s "${DEV_PATH}" -o - -z 20971520 -N  | 7z a -bd -t7z "./${BACKUP_DIR}/$FILE_NAME" -si -m0=lzma2 -mx=1 -mmt8 1>/dev/null
+				partclone.dd -s "${DEV_PATH}" -o - -z 20971520 -N  | 7z a -bd -t7z "./${BACKUP_DIR}/$FILE_NAME" -si -m0=lzma2 -mx=1 -mmt12 1>/dev/null
 				sha256sum "./${BACKUP_DIR}/$FILE_NAME" >> "./${BACKUP_DIR}/files.txt"
-				#
 			else
-				## 7zip compression
-				#
 				echo "Creation partclone image for partition with  ${LABEL} label with "${FILE_SYSTEM}" filesystem and 7zip compression tool"
-				partclone.$FILE_SYSTEM -c -s "${DEV_PATH}" -o - -z 20971520 -N  | 7z a -bd -t7z "./${BACKUP_DIR}/$FILE_NAME" -si -m0=lzma2 -mx=1 -mmt8 1>/dev/null
+				partclone.$FILE_SYSTEM -c -s "${DEV_PATH}" -o - -z 20971520 -N  | 7z a -bd -t7z "./${BACKUP_DIR}/$FILE_NAME" -si -m0=lzma2 -mx=1 -mmt12 >/dev/null
 				sha256sum "./${BACKUP_DIR}/$FILE_NAME" >> "./${BACKUP_DIR}/files.txt"
-				#
 			fi
 		fi
 		
 	done
 	#
-	##############################################################################################################################################################################
-	## BACKUP of GPT Partition table
+	## BACKUP of GPT Partition tables
 	## MAIN DISK
 	#
-	echo "################################################################################################################"
+	echo "########################################################################################################################"
 	echo "Backup main partition table..."
-	# MAIN_DISK="/dev/sda"
-	MAIN_DISK="/dev/nvme0n1"
-	# MAIN_DISK="/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_1TB_S4EWNF0M910268J"
 	MAIN_BACKUP_FILE="./${BACKUP_DIR}/main_table.bin"
-	#
 	if [ -b "${MAIN_DISK}" ] ;
 		echo "Main disk device has been found."
 	then
@@ -140,7 +132,7 @@ function MakeBackup()
 	#
 	## SECOND DISK
 	#
-	echo "################################################################################################################"
+	echo "########################################################################################################################"
 	echo "Backup second partition table..."
 	SECOND_BACKUP_FILE="./${BACKUP_DIR}/second_table.bin"
 	#
@@ -157,17 +149,15 @@ function MakeBackup()
 	else
 		echo "Second disk device has not been found."
 	fi
-	echo "################################################################################################################"
-	#
-	##############################################################################################################################################################################
-	## Setting permision for backup files
+	echo "########################################################################################################################"
 	chown -R 1000:1000 "./${BACKUP_DIR}"
-	#
 }
+######################################################################################################################################################
 #
 ## Function for read backup dir name
 function BackupDirRead
 {
+	echo "########################################################################################################################"
 	DIR_NAME_NEEDS_TO_BE_SET=true
 	while $DIR_NAME_NEEDS_TO_BE_SET
 	do
@@ -183,13 +173,14 @@ function BackupDirRead
 		fi
 	done
 }
+######################################################################################################################################################
 ## Function for restore backup
 #
 function RestoreBackup
 {
 	for PART in "${!PARTITIONS[@]}"; 
 	do
-		echo "################################################################################################################"
+		echo "########################################################################################################################"
 		LABEL="${PART}"
 		FILE_SYSTEM="${PARTITIONS[$LABEL]}"
 		echo "Processing partition with ${LABEL} label and ${FILE_SYSTEM} filesystem"
@@ -216,46 +207,34 @@ function RestoreBackup
 				fi
 			fi
 		fi
-		## 7zip compression
-		#
 		FILE_NAME="./${BACKUP_DIR}/$(echo ${LABEL} | tr '[:upper:]' '[:lower:]').img.7z"
-		#
 		if [[ -f ${FILE_NAME} ]];
 		then
 			if [ "${FILE_SYSTEM}" = "raw" ];
 			then
 				echo "Restoring raw image for partition with $LABEL label."
-				## 7zip compression
-				#
 				7z x -bd -so "${FILE_NAME}" | partclone.dd -s - -o "${DEV_PATH}" -z 20971520 -N
-				#
 			else
 				echo "Restoring partclone image for partition with $LABEL label and ${FILE_SYSTEM} filesystem."
-				## 7zip compression
-				#
 				7z x -bd -so "${FILE_NAME}" | partclone.$FILE_SYSTEM -r -s - -o "${DEV_PATH}" -z 20971520 -N
-				#
 			fi
 		else
 			echo "Backup file for $LABEL doesn't exists (skipping)."
 			continue
 		fi
-		echo "################################################################################################################"
 	done
+	echo "########################################################################################################################"
 	#
-	##############################################################################################################################################################################
 }
+######################################################################################################################################################
+#
 ## Function for restore of partition table from backup file.
 #
 function PartTableRestore
 {
-
-	
 	MAIN_BACKUP_FILE="./${BACKUP_DIR}/main_table.bin"
 	SECOND_BACKUP_FILE="./${BACKUP_DIR}/second_table.bin"
-	##
-	#
-	echo "################################################################################################################"
+	echo "########################################################################################################################"
 	echo "Attempt of restoring partition table for main disk"
 	if [ -f "./${MAIN_BACKUP_FILE}" ] && [ -b "${MAIN_DISK}" ] ; 
 	then
@@ -278,7 +257,7 @@ function PartTableRestore
 	    echo "Device or backup file does not exist"
 	fi
 	##
-	echo "################################################################################################################"
+	echo "########################################################################################################################"
 	echo "Attempt of restoring partition table for second disk"
 	if [ -f "./${SECOND_BACKUP_FILE}" ] && [ -b "${SECOND_DISK}" ] ; 
 	then
@@ -300,41 +279,52 @@ function PartTableRestore
 	else
 	    echo "Device or backup file does not exist"
 	fi
-	echo "################################################################################################################"
+	echo "########################################################################################################################"
 }
+######################################################################################################################################################
 #
 ## Function for checking images
 #
 function CheckImage()
 {
-	#
-	IMAGES=$(ls ./${BACKUP_DIR}/*.7z | xargs -n 1 basename | tr '\n' ' ')
-	for IMAGE_FILE in ${IMAGES};
-	do
-		echo "################################################################"
-		echo "Checking ${IMAGE_FILE} file"
-		echo "Checking integrity of 7zip archive:"
-		7z t "./${BACKUP_DIR}/${IMAGE_FILE}" 1>/dev/null
-		if [[ $? -eq 0 ]];
-		then
-			echo "No errors found for ${IMAGE_FILE} image file." 
-		else
-			echo "Checking ${IMAGE_FILE} failed."
-		fi
-		echo ""
-		echo "Checking image file with partclone.chkimg"
-		7z x -so "./${BACKUP_DIR}/${IMAGE_FILE}" | partclone.chkimg -s - -N
-		if [[ $? -ne 0 ]];
-		then
-			echo "Checking image with partclone.chimg failed"
-			echo "Logs: "
-			cat /var/log/partclone.log
-		fi
-	done
+	for PART in "${!PARTITIONS[@]}"; 
+		do
+			echo "########################################################################################################################"
+			LABEL="${PART}"
+			FILE_SYSTEM="${PARTITIONS[$LABEL]}"
+			echo "Checking partition image with ${LABEL} label and ${FILE_SYSTEM} filesystem"
+			#
+			FILE_NAME="./${BACKUP_DIR}/$(echo ${LABEL} | tr '[:upper:]' '[:lower:]').img.7z"
+			#
+			if [[ -f ${FILE_NAME} ]];
+			then	
+				echo "Checking integrity of 7zip archive."
+				7z t "${FILE_NAME}" 1>/dev/null
+				if [[ $? -eq 0 ]];
+				then
+					echo "No errors found for $(basename ${FILE_NAME}) image file." 
+				else
+					echo "Checking integrity of archive for $(basename ${FILE_NAME}) file failed."
+				fi
+				echo "Checking image file with partclone.chkimg"
+				if [ "${FILE_SYSTEM}" = "raw" ];
+				then
+					echo "Archive $(basename ${FILE_NAME}) does not contain partclone image."
+					echo "Checking image file is not possible."
+				else
+					7z x -bd -so "${FILE_NAME}" | partclone.chkimg -s - -N
+				fi
+			else
+				echo "Backup file for $LABEL doesn't exists (skipping)."
+				continue
+			fi
+		done
 }
+######################################################################################################################################################
 #
 ## Main progam
 #
+echo "########################################################################################################################"
 if [[ $# -eq 1 ]];
 then
 	case $1 in
@@ -368,6 +358,7 @@ then
 			echo "Invalid script argument."
 			PrintUsage
 			;;
+
 	esac
 
 elif [[ $#  -gt 1 ]];
@@ -375,8 +366,8 @@ then
 	echo "To many script arguments."
 	PrintUsage
 else
-
 	echo "You did not specify script argument."
 	PrintUsage
 fi
 #
+######################################################################################################################################################
