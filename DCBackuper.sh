@@ -6,12 +6,13 @@ function PrintUsage()
 	echo "########################################################################################################################"
 	echo "Pleae use: ./DCBackuper.sh 'operation'."
 	echo "Posible value of operation are:"
-	echo "a) backup - creating backup of partitions"
-	echo "b) restore - restoring backup of partitions", 
-	echo "c) part-table-restore - restoring partition table configuration"
-	echo "d) check - checking backup images files"
-	echo "e) backup-luks-lvm" - backup luks and lvm information
-	echo "For example: ./DCBackuper.sh restore"
+	echo "a) backup - creating backup of partitions."
+	echo "b) restore - restoring backup of partitions.", 
+	echo "c) part-table-restore - restoring partition table configuration."
+	echo "d) check - checking backup images files."
+	echo "e) backup-luks-lvm" - backup luks and lvm information.
+	echo "For example: "
+	echo "./DCBackuper.sh restore"
 	echo "########################################################################################################################"
 }
 ######################################################################################################################################################
@@ -53,7 +54,7 @@ function MakeBackup()
 					if [[ -b "${DEV_NAME_PATH}" ]];
 					then
 						DEV_PATH="${DEV_NAME_PATH}"
-						echo "Device file for ${PARTITION} partition has been found based on device file name"
+						echo "Device file for ${PARTITION} partition has been found based on device file name."
 					else
 						echo "Device file for ${PARTITION} partition has not been found (skipping)."
 						continue
@@ -69,19 +70,19 @@ function MakeBackup()
 		else
 			if [ "${FILE_SYSTEM}" = "raw" ];
 			then
-				echo "Creation archive with raw image for ${PARTITION} partition with with 7zip compression tool"
+				echo "Creation 7-zip archive of raw image for ${PARTITION} partition."
 				partclone.dd -s "${DEV_PATH}" -o - -z 20971520 -N  | 7z a -bd -t7z "${FILE_PATH}" -si -m0=lzma2 -mx=1 -mmt8 1>/dev/null
 				
 			else
-				echo "Creation archive with partclone image for ${PARTITION} partition with "${FILE_SYSTEM}" filesystem and 7zip compression tool"
+				echo "Creation 7-zip archive of partclone image for ${PARTITION} partition."
 				partclone.$FILE_SYSTEM -c -s "${DEV_PATH}" -o - -z 20971520 -N  | 7z a -bd -t7z "${FILE_PATH}" -si -m0=lzma2 -mx=1 -mmt8 >/dev/null
 			fi
 			if [[ -f ${FILE_PATH} ]];
 			then
-				echo "Backup file for ${PARTITION} has been created"
+				echo "Backup file for ${PARTITION} partition has been created."
 				sha256sum "${FILE_PATH}" >> "./${BACKUP_DIR}/files.txt"
 			else
-				echo "Creating backup file for ${PARTITION} failed"
+				echo "Creating backup file for ${PARTITION} failed."
 			fi
 		fi
 	done
@@ -90,7 +91,7 @@ function MakeBackup()
 	## MAIN DISK
 	#
 	echo "########################################################################################################################"
-	echo "Creating backup of partition table for main disk"
+	echo "Creating backup of partition table for main disk."
 	#
 	MAIN_BACKUP_PATH="./${BACKUP_DIR}/${MAIN_FILE}"
 	if [ -b "${MAIN_DISK}" ] ;
@@ -103,7 +104,7 @@ function MakeBackup()
 			dd if=${MAIN_DISK} of="${MAIN_BACKUP_PATH}" bs=512 count=34 status=none && sync
 			if [[ -f "${MAIN_BACKUP_PATH}" ]];
 			then
-				echo "Backup of partition table for main disk has been done."
+				echo "Backup of partition table for main disk has been created."
 				sha256sum "${MAIN_BACKUP_PATH}" >> "./${BACKUP_DIR}/files.txt"
 			else
 				echo "Backup of partition table for main disk has been failed."
@@ -111,6 +112,7 @@ function MakeBackup()
 		fi	
 	else
 		echo "Main disk device has not been found."
+		echo "Partition table backup for main disk has not been created."
 	fi
 	#
 	## SECOND DISK
@@ -129,7 +131,7 @@ function MakeBackup()
 			dd if=${SECOND_DISK} of="${SECOND_BACKUP_PATH}" bs=512 count=34 status=none && sync
 			if [[ -f "${SECOND_BACKUP_PATH}" ]];
 			then
-				echo "Backup of partition table for second disk has been done."
+				echo "Backup of partition table for second disk has been created."
 				sha256sum "${SECOND_BACKUP_PATH}" >> "./${BACKUP_DIR}/files.txt"
 			else
 				echo "Backup of partition table for second disk has been failed"
@@ -137,6 +139,7 @@ function MakeBackup()
 		fi
 	else
 		echo "Second disk device has not been found."
+		echo "Partition table backup for second disk has not been created."
 	fi
 	echo "########################################################################################################################"
 	chown -R 1000:1000 "./${BACKUP_DIR}"
@@ -153,7 +156,7 @@ function BackupDirRead
 		read -e -p "Enter backup directory name: " BACKUP_DIR
 		if [[ -d "./${BACKUP_DIR}" ]];
 		then	
-			echo "Backup directory was found"
+			echo "Backup directory was found."
 			DIR_NAME_NEEDS_TO_BE_SET=false
 		else
 			echo "Backup directory has not been found, please try again."
@@ -189,13 +192,13 @@ function RestoreBackup
 				if [[ -b "${LVM_PATH}" ]];
 				then
 					DEV_PATH=${LVM_PATH}
-					echo "Device file for ${PARTITION} partition has been found based on LVM name"
+					echo "Device file for ${PARTITION} partition has been found based on LVM name."
 				else
 					DEV_NAME_PATH="/dev/${PARTITION}"
 					if [[ -b "${DEV_NAME_PATH}" ]];
 					then
 						DEV_PATH="${DEV_NAME_PATH}"
-                                        	echo "Device file for ${PARTITION} partition has been found based on device file name"
+                                        	echo "Device file for ${PARTITION} partition has been found based on device file name."
 					else
 						echo "Device file for ${PARTITION} partition has not been found (skipping)."
                                         	continue
@@ -233,7 +236,7 @@ function PartTableRestore
 	MAIN_BACKUP_PATH="./${BACKUP_DIR}/${MAIN_FILE}"
 	SECOND_BACKUP_PATH="./${BACKUP_DIR}/${SECOND_FILE}"
 	echo "########################################################################################################################"
-	echo "Attempt of restoring partition table for main disk"
+	echo "Attempt of restoring partition table for main disk."
 	if [ -f "${MAIN_BACKUP_PATH}" ] && [ -b "${MAIN_DISK}" ] ; 
 	then
 	    echo "Device and backup file found."
@@ -241,18 +244,18 @@ function PartTableRestore
 	    if [ -z "${TMP}" ] ;
 	    then
 		echo "No existing partition table has been found on main disk device."
-		echo "Restoring partition table for main device"
+		echo "Restoring partition table for main device."
 		dd if="${MAIN_BACKUP_PATH}" of="${MAIN_DISK}" bs=512 status=none && sync
-		echo "Fixing backup partition table ( re-creating backup partition table )"
+		echo "Fixing backup partition table ( re-creating backup partition table )."
 		sgdisk -e "${MAIN_DISK}" >/dev/null 2>&1
-		echo "Verification"
+		echo "Verification."
 		sgdisk -v "${MAIN_DISK}"
 	    else
 		echo "There has been found previous partition table (${TMP})"
 		echo "Skipping"
 	    fi
 	else
-	    echo "Device or backup file does not exist"
+	    echo "Device or backup file does not exist."
 	fi
 	##
 	echo "########################################################################################################################"
@@ -290,7 +293,7 @@ function CheckImage()
 		echo "########################################################################################################################"
 		PARTITION="${PART}"
 		FILE_SYSTEM="${PARTITIONS[$PARTITION]}"
-		echo "Checking partition image file for ${PARTITION} and ${FILE_SYSTEM} filesystem"
+		echo "Checking partition image file for ${PARTITION} and ${FILE_SYSTEM} filesystem."
 		FILE_NAME="$(echo ${PARTITION} | tr '[:upper:]' '[:lower:]').img.7z"
 		FILE_PATH="./${BACKUP_DIR}/${FILE_NAME}"
 		if [[ -f ${FILE_PATH} ]];
@@ -299,7 +302,7 @@ function CheckImage()
 			7z t "${FILE_PATH}" 1>/dev/null
 			if [[ $? -eq 0 ]];
 			then
-				echo "No errors found for ${FILE_NAME} archive " 
+				echo "No errors found for ${FILE_NAME} archive." 
 			else
 				echo "Checking integrity of ${FILE_NAME} has been failed."
 			fi
@@ -324,7 +327,7 @@ function MakeBackupLuksLVM
 {
 	echo "########################################################################################################################"
 	# LUKS header backup
-	echo "Backup LUKS header"
+	echo "Backup LUKS header."
 	if [[ -b "${CRYPT_DEV}" ]];
 	then
 		echo "Encrypted device file has been found."
@@ -349,21 +352,21 @@ function MakeBackupLuksLVM
 	#
 	## 
 	echo "########################################################################################################################"
-	echo "Backup of information about phisical volume (PV)"
+	echo "Backup of information about phisical volume (PV)."
 	if [[ -b ${PV_DEV} ]];
 	then
-		echo "Phisical volume device has been found"
+		echo "Phisical volume device has been found."
 		TMP=$(blkid -s TYPE -o value "${PV_DEV}")
 		if [[ "${TMP}" == "LVM2_member" ]];
 		then
-			echo "Defined device is valid LVM2 member"
+			echo "Defined device is valid LVM2 member."
 			blkid -s UUID -o value "${PV_DEV}" > "./${BACKUP_DIR}/${PV_FILE}"
 			if [[ -f "./${BACKUP_DIR}/${PV_FILE}" ]];
 			then
-				echo "Backup file for physical volume information has been created"
+				echo "Backup file for physical volume information has been created."
 				sha256sum "./${BACKUP_DIR}/${PV_FILE}" >> "./${BACKUP_DIR}/files.txt"
 			else
-				echo "Backup file for physical volume information has not been created"
+				echo "Backup file for physical volume information has not been created."
 			fi
 		else
 			echo "Defined device is not valid LVM2 member - skipping."
@@ -375,18 +378,18 @@ function MakeBackupLuksLVM
 	echo "Backup of swap UUID"
 	if [[ -b ${SWAP_DEV} ]];
 	then
-		echo "Swap device has been found"
+		echo "Swap device has been found."
 		TMP=$(blkid -s TYPE -o value "${SWAP_DEV}")
 		if [[ "${TMP}" == "swap" ]];
 		then
-			echo "Defined device is valid swap device"
+			echo "Defined device is valid swap device."
 			blkid -s UUID -o value "${SWAP_DEV}" > "./${BACKUP_DIR}/${SWAP_UUID}"
 			if [[ -f "./${BACKUP_DIR}/${SWAP_UUID}" ]];
 			then
-				echo "Backup file with UUID of swap has been created"
+				echo "Backup file with UUID of swap has been created."
 				sha256sum "./${BACKUP_DIR}/${SWAP_UUID}" >> "./${BACKUP_DIR}/files.txt"
 			else
-				echo "Backup file with UUID of swap has not been created"
+				echo "Backup file with UUID of swap has not been created."
 			fi
 		else
 			echo "Defined device is not formatted as swap  - skipping."
@@ -395,7 +398,7 @@ function MakeBackupLuksLVM
 		echo "Swap device has not been found - skipping."
 	fi
 	echo "########################################################################################################################"
-	echo "Backup information about LVM voloume group"
+	echo "Backup information about LVM voloume group."
 	vgcfgbackup -q -f "./${BACKUP_DIR}/${VG_FILE}" "${VG_NAME}"
 	if [[ -f "./${BACKUP_DIR}/${VG_FILE}" ]];
 	then
@@ -405,7 +408,7 @@ function MakeBackupLuksLVM
 		echo "Backup file for LVM group information has been created."
 	fi
 	echo "########################################################################################################################"
-	echo "Backup information about GRUB bootloader"
+	echo "Backup information about GRUB bootloader."
 	efibootmgr -v | grep "${GRUB_ID}" > "./${BACKUP_DIR}/${GRUB_BACKUP}"
 	if [[ -f "./${BACKUP_DIR}/${GRUB_BACKUP}" ]];
 	then
