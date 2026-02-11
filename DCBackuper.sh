@@ -3,7 +3,7 @@
 ######################################################################################################################################################
 ## Config variables
 ## Partitions for backup, use PARTLABEL, LABEL, LVM name, device name, PARTUUID, UUID
-PARTITIONS=("EFI" "WINMSR" "WINOS" "WINREC")
+PARTITIONS=("EFI" "WINMSR" "WINOS" "WINREC" "WINDATA" )
 #
 ## First disk device file
 FIRST_DISK="/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_1TB_S4EWNF0M910268J"
@@ -115,10 +115,10 @@ function MakePartitionsBackup()
 				if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
 				then
 					echo "Creation 7-zip archive of raw image for ${PART} partition."
-					partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N  | 7z a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt8 1>/dev/null
+					partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N  | 7z a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt12 1>/dev/null
 				else
 					echo "Creation 7-zip archive of partclone image for ${PART} partition."
-					partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N  | 7z a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt8 >/dev/null
+					partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N  | 7z a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt12 >/dev/null
 				fi
 				if [[ -f "${BACKUP_FILE}" ]];
 				then
@@ -309,6 +309,10 @@ function CheckImages
 		else
 			echo "Checking integrity of ${BACKUP_FILE_NAME} has been failed."
 		fi
+		# echo "Image information: "
+		# echo "XXXXXXXXXX"
+		# 7z x -bd -so "${BACKUP_FILE}" | partclone.info -s - 
+		# echo "XXXXXXXXXX"
 		echo "Checking image file with 'partclone.chkimg' tool"
 		#
 		if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
@@ -318,10 +322,8 @@ function CheckImages
 		else
 			7z x -bd -so "${BACKUP_FILE}" | partclone.chkimg -s - -N
 		fi
-
 	done
 	echo "########################################################################################################################"
-
 }
 #
 ######################################################################################################################################################
@@ -329,6 +331,20 @@ function CheckImages
 ## Main Program
 #
 echo "########################################################################################################################"
+#
+## Checking if all needed tools are available
+REQUIRED_COMMANDS=("7z" "sgdisk" "partclone.chkimg")
+echo "Checking for required tools."
+for cmd in "${REQUIRED_COMMANDS[@]}"; do
+    if ! command -v $cmd >/dev/null 2>&1; then
+        echo "Not all required tools are available."
+        echo "Make sure that partclone, 7-zip and gdisk are installed before script execution."
+        exit 1
+    fi
+done
+echo "All required tools are available."
+echo "########################################################################################################################"
+#
 if [[ $# -eq 1 ]];
 then
 	case $1 in
