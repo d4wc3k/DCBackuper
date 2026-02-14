@@ -15,13 +15,17 @@ SECOND_DISK="/dev/disk/by-id/nvme-Samsung_SSD_980_1TB_S649NJ0R214022Y"
 ## Backup file name for partition table backup of first disk
 SECOND_PTABLE_BACKUP_FILE="second_ptable_backup.bin"
 #
-## BACKUP folder name
-# BACKUP_DIR="$(date +%Y_%m_%d_%H_%M)_WIN_CLEAN/BASIC"
-BACKUP_DIR="$(date +%Y_%m_%d_%H_%M)_WIN_SNAPSHOT"
-#
 ## compression for newly created backup files: 7-zip or rar
 COMPRESSION="7-zip"
 # COMPRESSION="rar"
+#
+## Standalone compression tools configuartion
+RAR_STANDALONE="./rar/rar"
+SEVEN_ZIP_STANDALONE="./7-zip/7zz"
+#
+## BACKUP folder name
+# BACKUP_DIR="$(date +%Y_%m_%d_%H_%M)_WIN_CLEAN/BASIC_${COMPRESSION}"
+BACKUP_DIR="$(date +%Y_%m_%d_%H_%M)_WIN_SNAPSHOT_${COMPRESSION}"
 #
 ######################################################################################################################################################
 #
@@ -126,20 +130,20 @@ function MakePartitionsBackup()
 					if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
 					then
 						echo "Creation 7-zip archive of raw image for ${PART} partition."
-						partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N  | 7z a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt8 1>/dev/null
+						partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N  | "${SEVEN_ZIP_COMMAND}"  a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt8 1>/dev/null
 					else
 						echo "Creation 7-zip archive of partclone image for ${PART} partition."
-						partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N  | 7z a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt8 >/dev/null
+						partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N  | "${SEVEN_ZIP_COMMAND}"  a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt8 >/dev/null
 					fi
 
 				else
 					if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
 					then
 						echo "Creation rar archive of raw image for ${PART} partition."
-						partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N | ${RAR} a -idq -k -m1 -md32m -mt8 -rr20 -si"${PART}_${FILESYSTEM}.img" "${BACKUP_FILE}"
+						partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N | "${RAR_COMMAND}" a -idq -k -m1 -md32m -mt8 -rr20 -si"${PART}_${FILESYSTEM}.img" "${BACKUP_FILE}"
 					else
 						echo "Creation rar archive of partclone image for ${PART} partition."
-						partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N | ${RAR} a -idq -k -m1 -md32m -mt8 -rr20 -si"${PART}_${FILESYSTEM}.img" "${BACKUP_FILE}"
+						partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N | "${RAR_COMMAND}" a -idq -k -m1 -md32m -mt8 -rr20 -si"${PART}_${FILESYSTEM}.img" "${BACKUP_FILE}"
 					fi
 				fi			
 				if [[ -f "${BACKUP_FILE}" ]];
@@ -191,10 +195,12 @@ function MakePartitionTableBackup()
 				fi
 			else
 				echo "GPT partition table has not been found on device."
+				echo "Skipping creation of backup"
 			fi
 		fi
 	else
 		echo "Device file for disk has not been found."
+		echo "Skipping creation of backup"
 	fi
 	echo "########################################################################################################################"
 }
@@ -300,23 +306,35 @@ function RestorePartitions
 			echo "Device file for ${BACKUP_FILE_NAME} backup has been found."
 			if [[ "${EXTENSION}" = "7z/cb7" ]];
 			then
+				if ! command -v "${SEVEN_ZIP_COMMAND}"  >/dev/null 2>&1;
+				then
+					echo "Error, 7-zip comppresion has not been found."
+					echo "########################################################################################################################"
+					break
+				fi
 				if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
                 		then
 					echo "Restoring raw image from ${BACKUP_FILE_NAME} backup file"
-					7z x -bd -so "${BACKUP_FILE}" | partclone.dd -s - -o "${DEVICE_FILE}" -z 10485760 -N
+					"${SEVEN_ZIP_COMMAND}" x -bd -so "${BACKUP_FILE}" | partclone.dd -s - -o "${DEVICE_FILE}" -z 10485760 -N
                 		else
 					echo "Restoring partclone image from ${BACKUP_FILE_NAME} backup file (FILESYSTEM: ${FILESYSTEM})."
-					7z x -bd -so "${BACKUP_FILE}" | partclone."${FILESYSTEM}" -r -s - -o "${DEVICE_FILE}" -z 10485760 -N
+					"${SEVEN_ZIP_COMMAND}" x -bd -so "${BACKUP_FILE}" | partclone."${FILESYSTEM}" -r -s - -o "${DEVICE_FILE}" -z 10485760 -N
                 		fi
 			elif [[ "${EXTENSION}" = "rar" ]];
 			then
+				if ! command -v "${RAR_COMMAND}"  >/dev/null 2>&1;
+				then
+					echo "Error, rar comppresion has not been found."
+					echo "########################################################################################################################"
+					break
+				fi
 				if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
                 		then
 					echo "Restoring raw image from ${BACKUP_FILE_NAME} backup file"
-					"${RAR}" p "${BACKUP_FILE}" | partclone.dd -s - -o "${DEVICE_FILE}" -z 10485760 -N
+					"${RAR_COMMAND}" p "${BACKUP_FILE}" | partclone.dd -s - -o "${DEVICE_FILE}" -z 10485760 -N
                 		else
 					echo "Restoring partclone image from ${BACKUP_FILE_NAME} backup file (FILESYSTEM: ${FILESYSTEM})."
-					"${RAR}" p "${BACKUP_FILE}" | partclone."${FILESYSTEM}" -r -s - -o "${DEVICE_FILE}" -z 10485760 -N
+					"${RAR_COMMAND}" p "${BACKUP_FILE}" | partclone."${FILESYSTEM}" -r -s - -o "${DEVICE_FILE}" -z 10485760 -N
                 		fi
 			else
 				echo "Error ${BACKUP_FILE_NAME} backup file is not rar or 7-zip archive."
@@ -343,8 +361,14 @@ function CheckImages
 		#
 		if [[ "${EXTENSION}" = "7z/cb7" ]];
 		then
+			if ! command -v "${SEVEN_ZIP_COMMAND}"  >/dev/null 2>&1;
+			then
+				echo "Error, 7-zip comppresion has not been found."
+				echo "########################################################################################################################"
+				break
+			fi
 			echo "Checking integrity of 7zip archive."
-			7z t "${BACKUP_FILE}" 1>/dev/null
+			"${SEVEN_ZIP_COMMAND}" t "${BACKUP_FILE}" 1>/dev/null
 			if [[ $? -eq 0 ]];
 			then
 				echo "No errors found for ${BACKUP_FILE_NAME} archive during integrity check."
@@ -354,15 +378,21 @@ function CheckImages
 					echo "Archive ${BACKUP_FILE_NAME} does not contain partclone image."
 					echo "Checking image file is not possible."
 				else
-					7z x -bd -so "${BACKUP_FILE}" | partclone.chkimg -s - -N
+					"${SEVEN_ZIP_COMMAND}" x -bd -so "${BACKUP_FILE}" | partclone.chkimg -s - -N
 				fi
 			else
 				echo "Checking integrity of ${BACKUP_FILE_NAME} has been failed."
 			fi
 		elif [[ "${EXTENSION}" = "rar" ]];
 		then
+			if ! command -v "${RAR_COMMAND}"  >/dev/null 2>&1;
+			then
+				echo "Error, rar comppresion has not been found."
+				echo "########################################################################################################################"
+				break
+			fi
 			echo "Checking integrity of rar archive."
-			"${RAR}" t "${BACKUP_FILE}" 1>/dev/null 
+			"${RAR_COMMAND}" t "${BACKUP_FILE}" 1>/dev/null 
 			if [[ $? -eq 0 ]];
 			then
 				echo "No errors found for ${BACKUP_FILE_NAME} archive during integrity check."
@@ -372,7 +402,7 @@ function CheckImages
 					echo "Archive ${BACKUP_FILE_NAME} does not contain partclone image."
 					echo "Checking image file is not possible."
 				else
-					"${RAR}" p "${BACKUP_FILE}" | partclone.chkimg -s - -N
+					"${RAR_COMMAND}" p "${BACKUP_FILE}" | partclone.chkimg -s - -N
 				fi
 			else
 				echo "Checking integrity of ${BACKUP_FILE_NAME} has been failed."
@@ -390,25 +420,47 @@ function CheckImages
 #
 echo "########################################################################################################################"
 #
+## Checking for standalone version of rar compression tool
+#
+if [[ -x "${RAR_STANDALONE}" ]];
+then
+	RAR_COMMAND="${RAR_STANDALONE}"
+else
+	RAR_COMMAND="rar"
+fi
+#
+## Checking for standalone version of 7-zip compression tool
+#
+if [[ -x "${SEVEN_ZIP_STANDALONE}" ]];
+then
+	SEVEN_ZIP_COMMAND="${SEVEN_ZIP_STANDALONE}"
+else
+	SEVEN_ZIP_COMMAND="7z"
+fi
+#
 ## Checking if all needed tools are available
 #
+REQUIRED_COMMANDS=( "sgdisk" "partclone.chkimg")
 #
-if [[ -x "./rar/rar" ]];
+if [[ "${COMPRESSION}" = "7-zip" ]];
 then
-	echo "Standalone version of rar has been found."
-	RAR="./rar/rar"
+	REQUIRED_COMMANDS=( ${REQUIRED_COMMANDS[@]} "${SEVEN_ZIP_COMMAND}" )
+
+elif [[ "${COMPRESSION}" = "rar" ]];
+then 
+	REQUIRED_COMMANDS=( ${REQUIRED_COMMANDS[@]} "${RAR_COMMAND}" )
 else
-	echo "Using installed version of rar."
-	RAR="rar"
+	echo "Invalid compresion option set, please check it and correct."
+	echo "Allowed value: 'rar' or '7-zip'."
+	exit 1
 fi
-#	
-REQUIRED_COMMANDS=( "sgdisk" "partclone.chkimg" "7z" "${RAR}" )
 #
 echo "Checking for required tools."
 for cmd in "${REQUIRED_COMMANDS[@]}"; do
     if ! command -v $cmd >/dev/null 2>&1; then
         echo "Not all required tools are available."
-
+	echo "Make sure that partclone, gdisk, 7-zip/rar are installed."
+	echo "########################################################################################################################"
         exit 1
     fi
 done
@@ -420,6 +472,7 @@ then
 	case $1 in
 		"backup")
 			echo "Creating Backup."
+			echo "Selected compression tool: ${COMPRESSION}."
 			MakePartitionsBackup
 			# Backup of partition table for first disk
 			echo "Creating partition table backup for first disk"
