@@ -17,20 +17,35 @@ SECOND_DISK="/dev/disk/by-id/nvme-Samsung_SSD_980_1TB_S649NJ0R214022Y"
 SECOND_PTABLE_BACKUP_FILE="second_ptable_backup.bin"
 #
 ## compression for newly created backup files: 7-zip or rar
-COMPRESSION="7-zip"
-# COMPRESSION="rar"
+# COMPRESSION="7-zip"
+COMPRESSION="rar"
 #
 ## Standalone compression tools configuration
-RAR_STANDALONE="./rar/rar"
-SEVEN_ZIP_STANDALONE="./7-zip/7zz"
+# Uncomment in order to use standalone version of 7-zip or rar
+# RAR_STANDALONE="./rar/rar"
+# SEVEN_ZIP_STANDALONE="./7-zip/7zz"
 #
 ## BACKUP folder name
-# BACKUP_DIR="$(date +%Y_%m_%d_%H_%M)_WIN_CLEAN/BASIC_${COMPRESSION}"
 BACKUP_DIR="$(date +%Y_%m_%d_%H_%M)_WIN_SNAPSHOT_${COMPRESSION}"
 #
 ## Parameter for number of threads used by compression.
+## default value is 4 threads
 THREADS="12"
-# THREADS="$(nproc)"
+#
+## 7 Zip compression levels
+# Possible values: 
+# 0 - store, 1 - fastest, 3 - fast, 5 - normal (default), 7 - maximum, 9 - ultra
+SEVEN_COMP_LEVEL="1"
+#
+## rar compression levels
+# Possible values: 
+# 0 - store, 1 - fastest, 2 - fast, 3 - normal (default), 4 - good, 5 - best
+RAR_COMP_LEVEL="1"
+#
+## rar percentage amount of recovery record
+## default selected value is 10 %
+## use 0 in order to disable adding recovery record to archive
+RAR_RECOVERY_PERC="20"
 #
 ######################################################################################################################################################
 #
@@ -135,20 +150,20 @@ function MakePartitionsBackup()
 					if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
 					then
 						echo "Creation 7-zip archive of raw image for ${PART} partition."
-						partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N  | "${SEVEN_ZIP_COMMAND}"  a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt"${THREADS}" 1>/dev/null
+						partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N  | "${SEVEN_ZIP_COMMAND}" a -bd -t7z "${BACKUP_FILE}" -si -mx"${SEVEN_COMP_LEVEL}" -mmt"${THREADS}" 1>/dev/null
 					else
 						echo "Creation 7-zip archive of partclone image for ${PART} partition."
-						partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N  | "${SEVEN_ZIP_COMMAND}"  a -bd -t7z "${BACKUP_FILE}" -si -m0=lzma2 -mx=1 -mmt"${THREADS}" >/dev/null
+						partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N  | "${SEVEN_ZIP_COMMAND}" a -bd -t7z "${BACKUP_FILE}" -si -mx"${SEVEN_COMP_LEVEL}" -mmt"${THREADS}" 1>/dev/null
 					fi
 
 				else
 					if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
 					then
 						echo "Creation rar archive of raw image for ${PART} partition."
-						partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N | "${RAR_COMMAND}" a -idq -k -m1 -md32m -mt"${THREADS}" -rr20 -si"${PART}_${FILESYSTEM}.img" "${BACKUP_FILE}"
+						partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N | "${RAR_COMMAND}" a -idq -k -m"${RAR_COMP_LEVEL}" -mt"${THREADS}" -rr"${RAR_RECOVERY_PERC}" -si"${PART}_${FILESYSTEM}.img" "${BACKUP_FILE}"
 					else
 						echo "Creation rar archive of partclone image for ${PART} partition."
-						partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N | "${RAR_COMMAND}" a -idq -k -m1 -md32m -mt"${THREADS}" -rr20 -si"${PART}_${FILESYSTEM}.img" "${BACKUP_FILE}"
+						partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N | "${RAR_COMMAND}" a -idq -k -m"${RAR_COMP_LEVEL}" -mt"${THREADS}" -rr"${RAR_RECOVERY_PERC}" -si"${PART}_${FILESYSTEM}.img" "${BACKUP_FILE}"
 					fi
 				fi			
 				if [[ -f "${BACKUP_FILE}" ]];
@@ -449,10 +464,13 @@ REQUIRED_COMMANDS=( "sgdisk" "partclone.chkimg")
 #
 if [[ "${COMPRESSION}" = "7-zip" ]];
 then
+	SEVEN_COMP_LEVEL="${SEVEN_COMP_LEVEL:-5}"
 	REQUIRED_COMMANDS=( ${REQUIRED_COMMANDS[@]} "${SEVEN_ZIP_COMMAND}" )
 
 elif [[ "${COMPRESSION}" = "rar" ]];
-then 
+then
+	RAR_COMP_LEVEL="${RAR_COMP_LEVEL:-3}"
+	RAR_RECOVERY_PERC="${RAR_RECOVERY_PERC:-10}"
 	REQUIRED_COMMANDS=( ${REQUIRED_COMMANDS[@]} "${RAR_COMMAND}" )
 else
 	echo "Invalid compression option set, please check it and correct."
@@ -476,6 +494,7 @@ if [[ $# -eq 1 ]];
 then
 	case $1 in
 		"backup")
+			THREADS="${THREADS:-4}"
 			echo "Creating Backup."
 			echo "Selected compression tool: ${COMPRESSION}."
 			MakePartitionsBackup
