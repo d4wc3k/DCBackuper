@@ -4,19 +4,19 @@
 ## LUKS/LVM backup Parameteres
 #
 ## LUKS Header
-CRYPT_DEV="/dev/sda3"
+CRYPT_DEV="/dev/nvme1n1p6"
 LUKS_HEADER_FILE="luks_header"
 ## LVM phisical volume device
-PV_DEV="/dev/mapper/crypt"
+PV_DEV="/dev/mapper/xyz"
 PV_FILE="pv_UUID.txt"
 ## SWAP
 SWAP_DEV="/dev/mapper/vg-swap"
-SWAP_UUID="swap_UUID.txt"
+SWAP_INFO_FILE="swap_info_backup.txt"
 ## Volume group
 VG_NAME="vg"
 VG_FILE="vg_backup.txt"
 ## GRUB Loader
-GRUB_ID="DEBIAN"
+GRUB_ID="DawCekDebian"
 GRUB_BACKUP="efibootmgr.txt"
 #
 ######################################################################################################################################################
@@ -62,7 +62,6 @@ function MakeBackupLuksLVM
 			if [[ -f "./${BACKUP_DIR}/${LUKS_HEADER_FILE}" ]];
 			then
 				echo "LUKS Header backup file has been created."
-				sha256sum "./${BACKUP_DIR}/${LUKS_HEADER_FILE}" >> "./${BACKUP_DIR}/files.txt"
 			else
 				echo "LUKS Header backup file has not been created."
 			fi
@@ -87,7 +86,6 @@ function MakeBackupLuksLVM
 			if [[ -f "./${BACKUP_DIR}/${PV_FILE}" ]];
 			then
 				echo "Backup file for physical volume information has been created."
-				sha256sum "./${BACKUP_DIR}/${PV_FILE}" >> "./${BACKUP_DIR}/files.txt"
 			else
 				echo "Backup file for physical volume information has not been created."
 			fi
@@ -98,7 +96,7 @@ function MakeBackupLuksLVM
 		echo "Phisical volume device has not been found - skipping."
 	fi
 	echo "########################################################################################################################"
-	echo "Backup of swap UUID"
+	echo "Backup of swap information"
 	if [[ -b ${SWAP_DEV} ]];
 	then
 		echo "Swap device has been found."
@@ -106,11 +104,13 @@ function MakeBackupLuksLVM
 		if [[ "${TMP}" == "swap" ]];
 		then
 			echo "Defined device is valid swap device."
-			blkid -s UUID -o value "${SWAP_DEV}" > "./${BACKUP_DIR}/${SWAP_UUID}"
-			if [[ -f "./${BACKUP_DIR}/${SWAP_UUID}" ]];
+			SWAP_UUID=$(blkid -s UUID -o value "${SWAP_DEV}")
+			SWAP_LABEL=$(blkid -s LABEL -o value "${SWAP_DEV}")
+			echo "Swap UUID: ${SWAP_UUID}" > "./${BACKUP_DIR}/${SWAP_INFO_FILE}"
+			echo "Swap label: ${SWAP_LABEL}" >> "./${BACKUP_DIR}/${SWAP_INFO_FILE}"
+			if [[ -f "./${BACKUP_DIR}/${SWAP_INFO_FILE}" ]];
 			then
 				echo "Backup file with UUID of swap has been created."
-				sha256sum "./${BACKUP_DIR}/${SWAP_UUID}" >> "./${BACKUP_DIR}/files.txt"
 			else
 				echo "Backup file with UUID of swap has not been created."
 			fi
@@ -122,21 +122,29 @@ function MakeBackupLuksLVM
 	fi
 	echo "########################################################################################################################"
 	echo "Backup information about LVM voloume group."
-	vgcfgbackup -q -f "./${BACKUP_DIR}/${VG_FILE}" "${VG_NAME}"
-	if [[ -f "./${BACKUP_DIR}/${VG_FILE}" ]];
+	vgdisplay "${VG_NAME}" > /dev/null 2>&1
+	if [[ $? -eq 0 ]];
 	then
-		echo "Backup file for LVM group information has been created."
-		sha256sum "./${BACKUP_DIR}/${VG_FILE}" >> "./${BACKUP_DIR}/files.txt"
+		echo "Volume group with ${VG_NAME} name has been found."
+		vgcfgbackup -q -f "./${BACKUP_DIR}/${VG_FILE}" "${VG_NAME}"
+		#
+		if [[ -f "./${BACKUP_DIR}/${VG_FILE}" ]];
+		then
+			echo "Backup file for LVM group information has been created."
+		else
+			echo "Backup file for LVM group information has not been created."
+		fi
+		#
 	else
-		echo "Backup file for LVM group information has been created."
+		echo "Volume group with ${VG_NAME} name has not been found."
 	fi
+	#
 	echo "########################################################################################################################"
 	echo "Backup information about GRUB bootloader."
 	efibootmgr -v | grep "${GRUB_ID}" > "./${BACKUP_DIR}/${GRUB_BACKUP}"
 	if [[ -f "./${BACKUP_DIR}/${GRUB_BACKUP}" ]];
 	then
 		echo "Backup file for GRUB loader information has been created."
-		sha256sum "./${BACKUP_DIR}/${GRUB_BACKUP}" >> "./${BACKUP_DIR}/files.txt"
 	else
 		echo "Backup file for GRUB loader information has not been created."
 	fi
@@ -149,5 +157,6 @@ function MakeBackupLuksLVM
 BACKUP_DIR=""
 BackupDirRead
 MakeBackupLuksLVM
+chown -R 1000:1000 "${BACKUP_DIR}"
 #
 ######################################################################################################################################################

@@ -4,7 +4,11 @@
 ## Config variables
 #
 ## Partitions for backup, use PARTLABEL, LABEL, LVM name, device name, PARTUUID, UUID
-PARTITIONS=("EFI" "WINMSR" "WINOS" "WINREC" "WINDATA" )
+## WIN
+# PARTITIONS=("EFI" "WINMSR" "WINOS" "WINREC" "WINDATA" )
+#
+## LIN
+PARTITIONS=("EFI" "BOOT" "vg-root" "vg-home" )
 #
 ## First disk device file
 FIRST_DISK="/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_1TB_S4EWNF0M910268J"
@@ -17,7 +21,13 @@ SECOND_DISK="/dev/disk/by-id/nvme-Samsung_SSD_980_1TB_S649NJ0R214022Y"
 SECOND_PTABLE_BACKUP_FILE="second_ptable_backup.bin"
 #
 ## BACKUP folder name
-BACKUP_DIR="BACKUPS/$(date +%Y_%m_%d_%H_%M)_WIN_SNAPSHOT"
+MACHINE="DawCekPC"
+# OS="WIN"
+OS="LIN"
+# TYPE="CLEAN/BASIC"
+TYPE="SNAPSHOT"
+#
+BACKUP_DIR="BACKUPS/$(date +%Y_%m_%d_%H_%M)_${MACHINE}_${OS}_${TYPE}"
 #
 ## Parameter for number of threads used by compression.
 ## default value is 4 threads
@@ -30,7 +40,7 @@ THREADS="8"
 ## 7 Zip compression levels
 # Possible values: 
 # 0 - store, 1 - fastest, 3 - fast, 5 - normal (default), 7 - maximum, 9 - ultra
-SEVEN_COMP_LEVEL="3"
+SEVEN_COMP_LEVEL="1"
 #
 ######################################################################################################################################################
 #
@@ -174,7 +184,6 @@ function MakePartitionTableBackup()
 				if [[ -f "${BACKUP_FILE}" && $? -eq 0 ]];
 				then
 					echo "Backup of partition table for disk has been created."
-					sha256sum "${BACKUP_FILE}" >> "./${BACKUP_DIR}/files.txt"
 				else
 					echo "Backup of partition table for main disk has been failed."
 				fi
