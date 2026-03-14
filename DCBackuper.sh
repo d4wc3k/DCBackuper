@@ -3,12 +3,18 @@
 ######################################################################################################################################################
 ## Config variables
 #
-## Partitions for backup, use PARTLABEL, LABEL, LVM name, device name, PARTUUID, UUID
+## Partitions for creating backup, use PARTLABEL, LABEL, LVM name, device name, PARTUUID, UUID
 ## WIN
-# PARTITIONS=("EFI" "WINMSR" "WINOS" "WINREC" "WINDATA" )
+SRC_PARTITIONS=("EFI" "WINMSR" "WINOS" "WINREC" "WINDATA" )
+## Lin
+# SRC_PARTITIONS=("EFI" "LINBOOT" "vg-root" "vg-home" )
 #
-## LIN
-PARTITIONS=("EFI" "BOOT" "vg-root" "vg-home" )
+## Partitions for restoring from backup.
+## If value is empty or not set, then no partition will be restored.
+## Win
+TARGET_PARTITIONS=( "EFI" "WINMSR" "WINOS" "WINREC" "WINDATA" )
+## Lin
+# TARGET_PARTITIONS= ("EFI" "LINBOOT" "vg-root" "vg-home" )
 #
 ## First disk device file
 FIRST_DISK="/dev/disk/by-id/nvme-Samsung_SSD_970_EVO_Plus_1TB_S4EWNF0M910268J"
@@ -22,20 +28,16 @@ SECOND_PTABLE_BACKUP_FILE="second_ptable_backup.bin"
 #
 ## BACKUP folder name
 MACHINE="DawCekPC"
-# OS="WIN"
-OS="LIN"
-# TYPE="CLEAN/BASIC"
+# TYPE="CLEAN/BASIC/SNAPSHOT"
 TYPE="SNAPSHOT"
-#
-BACKUP_DIR="BACKUPS/$(date +%Y_%m_%d_%H_%M)_${MACHINE}_${OS}_${TYPE}"
+## Win
+BACKUP_DIR="BACKUPS/TEST_$(date +%Y_%m_%d_%H_%M)_${MACHINE}_WIN_${TYPE}"
+## Lin
+# BACKUP_DIR="BACKUPS/TEST_$(date +%Y_%m_%d_%H_%M)_${MACHINE}_LIN_${TYPE}"
 #
 ## Parameter for number of threads used by compression.
 ## default value is 4 threads
 THREADS="8"
-#
-## Standalone version of 7-zip compression tools
-# Set path to standalone 7-zip binary
-# SEVEN_ZIP_STANDALONE="./7-zip/7zz"
 #
 ## 7 Zip compression levels
 # Possible values: 
@@ -113,7 +115,7 @@ function MakePartitionsBackup()
 	echo "########################################################################################################################"
 	mkdir -p "${BACKUP_DIR}"
 	#
-	for PART in ${PARTITIONS[@]}; 
+	for PART in ${SRC_PARTITIONS[@]}; 
 	do
 		echo "Processing ${PART} partition."
 		DEVICE_FILE=$(GetDeviceFile "${PART}" )
@@ -137,10 +139,10 @@ function MakePartitionsBackup()
 				if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
 				then
 					echo "Creation 7-zip archive of raw image for ${PART} partition."
-					partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N  | "${SEVEN_ZIP_COMMAND}" a -bd -t7z "${BACKUP_FILE}" -si -mx"${SEVEN_COMP_LEVEL}" -mmt"${THREADS}" 1>/dev/null
+					partclone.dd -s "${DEVICE_FILE}" -o - -z 10485760 -N  | 7z a -bd -t7z "${BACKUP_FILE}" -si -mx"${SEVEN_COMP_LEVEL}" -mmt"${THREADS}" 1>/dev/null
 				else
 					echo "Creation 7-zip archive of partclone image for ${PART} partition."
-					partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N  | "${SEVEN_ZIP_COMMAND}" a -bd -t7z "${BACKUP_FILE}" -si -mx"${SEVEN_COMP_LEVEL}" -mmt"${THREADS}" 1>/dev/null
+					partclone."${FILESYSTEM}" -c -s "${DEVICE_FILE}" -o - -z 10485760 -N  | 7z a -bd -t7z "${BACKUP_FILE}" -si -mx"${SEVEN_COMP_LEVEL}" -mmt"${THREADS}" 1>/dev/null
 				fi
 				if [[ -f "${BACKUP_FILE}" ]];
 				then
@@ -284,9 +286,17 @@ function RestorePartitions
 	IMAGE_FILES=$(ls ./${BACKUP_DIR}/*.img.7z | xargs -n 1 basename | tr '\n' ' ')
 	for BACKUP_FILE_NAME in ${IMAGE_FILES[@]};
 	do
-		echo "Restoring from ${BACKUP_FILE_NAME} backup file."
 		BACKUP_FILE="./${BACKUP_DIR}/${BACKUP_FILE_NAME}"
 		PART=$(echo "${BACKUP_FILE_NAME}" | cut -d "." -f 1 | cut -d "_" -f 1)
+		#
+		if [[ ! "${TARGET_PARTITIONS[@]}" =~ "${PART}" ]];
+		then
+			echo "${BACKUP_FILE_NAME} file has been found in selected backup directory, but it will be not restored."
+			echo "########################################################################################################################"
+			continue
+		fi
+		#
+		echo "Restoring from ${BACKUP_FILE_NAME} backup file."
 		FILESYSTEM=$(echo "${BACKUP_FILE_NAME}" | cut -d "." -f 1 | cut -d "_" -f 2)
 		EXTENSION=$(file -b --extension "${BACKUP_FILE}")
 		DEVICE_FILE=$(GetDeviceFile "${PART}" )
@@ -303,10 +313,10 @@ function RestorePartitions
 				if [[ "${FILESYSTEM}" = "none" || "${FILESYSTEM}" = "swap" ]];
                 		then
 					echo "Restoring raw image from ${BACKUP_FILE_NAME} backup file"
-					"${SEVEN_ZIP_COMMAND}" x -bd -so "${BACKUP_FILE}" | partclone.dd -s - -o "${DEVICE_FILE}" -z 10485760 -N
+					7z x -bd -so "${BACKUP_FILE}" | partclone.dd -s - -o "${DEVICE_FILE}" -z 10485760 -N
                 		else
 					echo "Restoring partclone image from ${BACKUP_FILE_NAME} backup file (FILE SYSTEM: ${FILESYSTEM})."
-					"${SEVEN_ZIP_COMMAND}" x -bd -so "${BACKUP_FILE}" | partclone."${FILESYSTEM}" -r -s - -o "${DEVICE_FILE}" -z 10485760 -N
+					7z x -bd -so "${BACKUP_FILE}" | partclone."${FILESYSTEM}" -r -s - -o "${DEVICE_FILE}" -z 10485760 -N
                 		fi
 			else
 				echo "Error ${BACKUP_FILE_NAME} backup file is not valid 7-zip archive."
@@ -334,7 +344,7 @@ function CheckImages
 		if [[ "${EXTENSION}" = "7z/cb7" ]];
 		then
 			echo "Checking integrity of 7zip archive."
-			"${SEVEN_ZIP_COMMAND}" t "${BACKUP_FILE}" 1>/dev/null
+			7z t "${BACKUP_FILE}" 1>/dev/null
 			if [[ $? -eq 0 ]];
 			then
 				echo "No errors found for ${BACKUP_FILE_NAME} archive during integrity check."
@@ -344,7 +354,7 @@ function CheckImages
 					echo "Archive ${BACKUP_FILE_NAME} does not contain partclone image."
 					echo "Checking image file is not possible."
 				else
-					"${SEVEN_ZIP_COMMAND}" x -bd -so "${BACKUP_FILE}" | partclone.chkimg -s - -N
+					7z x -bd -so "${BACKUP_FILE}" | partclone.chkimg -s - -N
 				fi
 			else
 				echo "Checking integrity of ${BACKUP_FILE_NAME} has been failed."
@@ -362,18 +372,9 @@ function CheckImages
 #
 echo "########################################################################################################################"
 #
-## Checking for standalone version of 7-zip compression tool
-#
-if [[ -x "${SEVEN_ZIP_STANDALONE}" ]];
-then
-	SEVEN_ZIP_COMMAND="${SEVEN_ZIP_STANDALONE}"
-else
-	SEVEN_ZIP_COMMAND="7z"
-fi
-#
 ## Checking if all needed tools are available
 #
-REQUIRED_COMMANDS=( "sgdisk" "partclone.chkimg" "${SEVEN_ZIP_COMMAND}")
+REQUIRED_COMMANDS=( "sgdisk" "partclone.chkimg" "7z" )
 #
 echo "Checking for required tools."
 for cmd in "${REQUIRED_COMMANDS[@]}"; do
