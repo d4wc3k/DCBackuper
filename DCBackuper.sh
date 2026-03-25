@@ -31,9 +31,9 @@ MACHINE="DawCekPC"
 # TYPE="CLEAN/BASIC/SNAPSHOT"
 TYPE="SNAPSHOT"
 ## Win
-BACKUP_DIR="BACKUPS/TEST_$(date +%Y_%m_%d_%H_%M)_${MACHINE}_WIN_${TYPE}"
+BACKUP_DIR="BACKUPS/$(date +%Y_%m_%d_%H_%M)_${MACHINE}_WIN_${TYPE}"
 ## Lin
-# BACKUP_DIR="BACKUPS/TEST_$(date +%Y_%m_%d_%H_%M)_${MACHINE}_LIN_${TYPE}"
+# BACKUP_DIR="BACKUPS/$(date +%Y_%m_%d_%H_%M)_${MACHINE}_LIN_${TYPE}"
 #
 ## Parameter for number of threads used by compression.
 ## default value is 4 threads
@@ -399,9 +399,11 @@ then
 			# Backup of partition table for first disk
 			echo "Creating partition table backup for first disk"
 			MakePartitionTableBackup "${FIRST_DISK}" "${FIRST_PTABLE_BACKUP_FILE}"
+			lsblk -b -l -o ID,NAME,TYPE,LABEL,UUID,PARTLABEL,PARTUUID,START,SIZE,PHY-SEC,LOG-SEC "${FIRST_DISK}" > "./${BACKUP_DIR}/first_disk_partitions.info"
 			# Backup of partition table for second disk
 			echo "Creating partition table backup for first disk"
 		 	MakePartitionTableBackup "${SECOND_DISK}" "${SECOND_PTABLE_BACKUP_FILE}"
+			lsblk -b -l -o ID,NAME,TYPE,LABEL,UUID,PARTLABEL,PARTUUID,START,SIZE,PHY-SEC,LOG-SEC "${SECOND_DISK}" > "./${BACKUP_DIR}/second_disk_partitions.info"
 			chown -R 1000:1000 "${BACKUP_DIR}"
 			;;
 
